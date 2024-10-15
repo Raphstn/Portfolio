@@ -1,32 +1,90 @@
 import pandas as pd
+import os
 
 
-def load_data(filepath):
-    """Loads the dataset from a CSV file."""
-    df = pd.read_csv(filepath)
-    return df
+# Function to load the raw data
+def load_data(file_path):
+    """
+    Load the raw data from a CSV file.
+
+    Parameters:
+    file_path (str): Path to the raw CSV file.
+
+    Returns:
+    DataFrame: Loaded data.
+    """
+    return pd.read_csv(file_path)
 
 
-def clean_data(df):
-    """Performs data cleaning operations."""
-    # Rename columns for easier manipulation
-    df_cleaned = df.rename(columns={
-        'Clothing ID': 'Clothing_ID',
-        'Review Text': 'Review_Text',
-        'Recommended IND': 'Recommended',
-        'Positive Feedback Count': 'Positive_Feedback_Count',
-        'Division Name': 'Division_Name',
-        'Department Name': 'Department_Name',
-        'Class Name': 'Class_Name'
-    })
+# Function to drop unnecessary columns
+def drop_columns(df, columns_to_drop):
+    """
+    Drop the specified columns from the DataFrame.
+
+    Parameters:
+    df (DataFrame): The original DataFrame.
+    columns_to_drop (list): List of columns to drop.
+
+    Returns:
+    DataFrame: DataFrame after dropping specified columns.
+    """
+    return df.drop(columns=columns_to_drop, errors='ignore')
+
+
+# Function to check for duplicates
+def check_duplicates(df):
+    """
+    Check for duplicate rows in the DataFrame.
+
+    Parameters:
+    df (DataFrame): The DataFrame to check.
+
+    Returns:
+    int: Number of duplicate rows.
+    """
+    return df.duplicated().sum()
+
+
+# Function to clean data
+def clean_data(raw_file_path, cleaned_file_path):
+    """
+    Cleans the data from the raw CSV file, ensuring all numeric columns contain valid values,
+    combines release date columns, and exports cleaned data to a new file.
+
+    Parameters:
+    raw_file_path (str): Path to the raw CSV file containing the data.
+    cleaned_file_path (str): Path to save the cleaned data.
+    """
+    # Load raw data
+    df = load_data(raw_file_path)
 
     # Drop unnecessary columns
-    df_cleaned = df_cleaned.drop(columns=['Title', 'Unnamed: 0'])
+    columns_to_drop = ['bpm', 'key', 'mode', 'danceability_%', 'valence_%', 'energy_%', 'acousticness_%',
+                       'instrumentalness_%', 'liveness_%', 'speechiness_%']
+    df_cleaned = drop_columns(df, columns_to_drop)
 
-    # Fill missing values in 'Review_Text'
-    df_cleaned['Review_Text'] = df_cleaned['Review_Text'].fillna('No Review')
+    # Check for duplicates
+    duplicates_count = check_duplicates(df_cleaned)
+    print(f"Number of duplicate rows: {duplicates_count}")
 
-    # Drop rows with missing values in key columns
-    df_cleaned = df_cleaned.dropna(subset=['Division_Name', 'Department_Name', 'Class_Name'])
+    # Create 'release_date' column by combining year, month, day
+    df_cleaned['release_date'] = pd.to_datetime(df_cleaned['released_year'].astype(str) + '-' +
+                                                df_cleaned['released_month'].astype(str) + '-' +
+                                                df_cleaned['released_day'].astype(str),
+                                                errors='coerce')
+    df_cleaned = df_cleaned.dropna(subset=['release_date'])
 
-    return df_cleaned
+    # Ensure numeric columns contain valid values
+    numeric_columns = ['artist_count', 'streams', 'released_year', 'released_month', 'released_day',
+                       'in_spotify_playlists', 'in_spotify_charts', 'in_apple_playlists',
+                       'in_apple_charts', 'in_deezer_playlists', 'in_deezer_charts', 'in_shazam_charts']
+
+    for col in numeric_columns:
+        df_cleaned[col] = pd.to_numeric(df_cleaned[col], errors='coerce').fillna(0).astype(int)
+
+    # Create the directory if it doesn't exist
+    os.makedirs(os.path.dirname(cleaned_file_path), exist_ok=True)
+
+    # Save the cleaned DataFrame as an Excel file
+    df_cleaned.to_excel(cleaned_file_path, index=False)
+    print(f"Cleaned data saved to: {cleaned_file_path}")
