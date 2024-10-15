@@ -1,29 +1,65 @@
-def calculate_age_rating_correlation(df):
-    """Calculates and returns the correlation between age and ratings."""
-    correlation = df['Age'].corr(df['Rating'])
-    return correlation
 
-def describe_numerical_columns(df):
-    """Returns summary statistics for numerical columns."""
-    return df.describe()
+import pandas as pd
+from sqlalchemy import create_engine
 
-def count_unique_values(df):
-    """Counts and prints the number of unique values for key categorical columns."""
-    print(f"{df['Class_Name'].nunique()} unique product categories")
-    print(f"{df['Division_Name'].nunique()} unique divisions")
-    print(f"{df['Rating'].nunique()} unique rating values")
+# Function to execute a query and return the result as a DataFrame
+def query_to_dataframe(query, conn_string):
+    engine = create_engine(conn_string)
+    with engine.connect() as conn:
+        return pd.read_sql_query(query, conn)
+
+# Function to get top 10 artists by streams
+def get_top_10_artists(conn_string):
+    query_top_10_artists = """
+    SELECT artist_name, SUM(streams) as total_streams
+    FROM spotify_songs
+    GROUP BY artist_name
+    ORDER BY total_streams DESC
+    LIMIT 10;
+    """
+    return query_to_dataframe(query_top_10_artists, conn_string)
+
+# Function to get trends in song releases by year
+def get_release_trends(conn_string):
+    query_release_trends = """
+    SELECT released_year, COUNT(*) as song_count
+    FROM spotify_songs
+    GROUP BY released_year
+    ORDER BY released_year;
+    """
+    return query_to_dataframe(query_release_trends, conn_string)
+
+# Function to get distribution of songs across platforms
+def get_platform_distribution(conn_string):
+    query_platform_distribution = """
+    SELECT
+        SUM(in_spotify_playlists) as spotify_playlists,
+        SUM(in_apple_playlists) as apple_playlists,
+        SUM(in_deezer_playlists) as deezer_playlists
+    FROM spotify_songs;
+    """
+    return query_to_dataframe(query_platform_distribution, conn_string)
+
+# Function to get top 10 years with most song releases
+def get_top_10_years_releases(conn_string):
+    query_top_years = """
+    SELECT released_year, COUNT(*) as song_count
+    FROM spotify_songs
+    GROUP BY released_year
+    ORDER BY song_count DESC
+    LIMIT 10;
+    """
+    return query_to_dataframe(query_top_years, conn_string)
 
 
-def analyze_low_ratings_by_age(df, threshold=4.0):
-    """Analyzes categories with the lowest average ratings by age group."""
-
-    # Group by Age Group and Class Name, and calculate the average rating for each group
-    low_ratings_by_age = df.groupby(['Age_Group', 'Class_Name'])['Rating'].mean().reset_index()
-
-    # Filter for categories with ratings below the specified threshold
-    low_ratings_by_age = low_ratings_by_age[low_ratings_by_age['Rating'] < threshold]
-
-    # Sort by Age Group and Ratings to see the lowest ratings by group
-    return low_ratings_by_age.sort_values(by=['Age_Group', 'Rating'], ascending=True)
-
+# Function to get top artists by presence in playlists and charts
+def get_top_artists_playlist_chart(conn_string):
+    query_top_artists_playlist_chart = """
+    SELECT artist_name, SUM(in_spotify_playlists) as spotify_presence, SUM(in_apple_playlists) as apple_presence, SUM(streams) as total_streams
+    FROM spotify_songs
+    GROUP BY artist_name
+    ORDER BY total_streams DESC
+    LIMIT 10;
+    """
+    return query_to_dataframe(query_top_artists_playlist_chart, conn_string)
 
